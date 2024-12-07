@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rebar Distance Calculator</title>
+</head>
+<body>
+    <h1>Rebar Distance Calculator</h1>
+    <p>Using your device's back camera</p>
+    <video id="camera" autoplay playsinline></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <p id="result">Distance: N/A</p>
+
+    <script>
+        const video = document.getElementById("camera");
+        const canvas = document.getElementById("canvas");
+        const result = document.getElementById("result");
+
+        // Request access to the back camera
+        navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: "environment" } 
+        }).then(stream => {
+            video.srcObject = stream;
+        }).catch(err => {
+            console.error("Camera access denied:", err);
+        });
+
+        // Send captured frame to the server
+        async function sendFrame() {
+            const context = canvas.getContext("2d");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Capture and encode the frame
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const frameData = canvas.toDataURL("image/jpeg");
+
+            try {
+                const response = await fetch("/process_frame", {
+                    method: "POST",
+                    body: new FormData().append("frame", await fetch(frameData).then(res => res.blob())),
+                });
+
+                const data = await response.json();
+                if (data.distance !== -1) {
+                    result.innerText = `Distance: ${data.distance.toFixed(2)} px`;
+                } else {
+                    result.innerText = "Corners not detected";
+                }
+            } catch (error) {
+                console.error("Error processing frame:", error);
+            }
+        }
+
+        // Continuously send frames every second
+        setInterval(sendFrame, 1000);
+    </script>
+</body>
+</html>
